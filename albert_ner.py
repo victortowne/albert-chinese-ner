@@ -196,7 +196,7 @@ class DataProcessor(object):
   @classmethod
   def _read_data(cls, input_file):
     """Reads a BIO data."""
-    with open(input_file) as f:
+    with open(input_file, encoding="utf8") as f:
       lines = []
       words = []
       labels = []
@@ -252,7 +252,7 @@ class NerProcessor(DataProcessor):
 def write_tokens(tokens,mode):
   if mode=="test":
     path = os.path.join(FLAGS.output_dir, "token_"+mode+".txt")
-    wf = open(path,'a')
+    wf = open(path,'a', encoding="utf8")
     for token in tokens:
       if token!="**NULL**":
         wf.write(token+'\n')
@@ -341,7 +341,7 @@ def file_based_convert_examples_to_features(
   label_map = {}
   for (i, label) in enumerate(label_list,1):
     label_map[label] = i
-  with open('albert_base_ner_checkpoints/label2id.pkl','wb') as w:
+  with open('./output/albert_base_ner_checkpoints/label2id.pkl','wb') as w:
     pickle.dump(label_map,w)
 
   writer = tf.python_io.TFRecordWriter(output_file)
@@ -669,13 +669,18 @@ def main(_):
         FLAGS.tpu_name, zone=FLAGS.tpu_zone, project=FLAGS.gcp_project)
 
   is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
+  config = tf.ConfigProto()
+  config.gpu_options.per_process_gpu_memory_fraction = 0.5
+  config.gpu_options.allow_growth = True
   # Cloud TPU: Invalid TPU configuration, ensure ClusterResolver is passed to tpu.
   print("###tpu_cluster_resolver:",tpu_cluster_resolver)
   run_config = tf.contrib.tpu.RunConfig(
       cluster=tpu_cluster_resolver,
       master=FLAGS.master,
       model_dir=FLAGS.output_dir,
+      session_config=config,
       save_checkpoints_steps=FLAGS.save_checkpoints_steps,
+      keep_checkpoint_max = 3,
       tpu_config=tf.contrib.tpu.TPUConfig(
           iterations_per_loop=FLAGS.iterations_per_loop,
           num_shards=FLAGS.num_tpu_cores,
@@ -802,7 +807,7 @@ def main(_):
 
   if FLAGS.do_predict:
     token_path = os.path.join(FLAGS.output_dir, "token_test.txt")
-    with open('albert_base_ner_checkpoints/label2id.pkl','rb') as rf:
+    with open('./output/albert_base_ner_checkpoints/label2id.pkl','rb') as rf:
       label2id = pickle.load(rf)
       id2label = {value:key for key,value in label2id.items()}
     if os.path.exists(token_path):
@@ -842,4 +847,5 @@ if __name__ == "__main__":
   flags.mark_flag_as_required("vocab_file")
   flags.mark_flag_as_required("bert_config_file")
   flags.mark_flag_as_required("output_dir")
+  #with tf.device('/gpu:0'):
   tf.app.run()
